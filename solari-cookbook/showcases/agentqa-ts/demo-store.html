@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Northstar Supply Demo Store</title>
+  <style>
+    :root { --ink: #172026; --muted: #5d6b73; --line: #d7e0e5; --bg: #f4f7f7; --panel: #ffffff; --accent: #0f766e; --accent-dark: #104f4b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+    header { background: #122326; color: white; padding: 18px 24px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+    header a { color: white; text-decoration: none; font-weight: 700; }
+    main { max-width: 980px; margin: 0 auto; padding: 28px 20px 48px; }
+    h1 { font-size: 34px; margin: 0 0 12px; letter-spacing: 0; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .product, .cart, .checkout, .confirmation { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px; }
+    .product-layout { display: grid; grid-template-columns: minmax(180px, 320px) 1fr; gap: 24px; align-items: start; }
+    .photo { aspect-ratio: 4 / 3; border-radius: 8px; background: linear-gradient(135deg, #e6f4f1, #f6d365 52%, #f4f7f7); border: 1px solid var(--line); display: grid; place-items: center; color: var(--accent-dark); font-weight: 700; }
+    .price { font-size: 28px; font-weight: 700; margin: 12px 0; }
+    button { border: 0; border-radius: 6px; background: var(--accent); color: white; padding: 11px 14px; font-weight: 700; cursor: pointer; font: inherit; }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { background: #9aa8af; cursor: not-allowed; }
+    label { display: block; font-weight: 700; margin: 12px 0 5px; }
+    input { width: 100%; max-width: 520px; padding: 10px; border: 1px solid #aebbc3; border-radius: 6px; font: inherit; }
+    .muted { color: var(--muted); }
+    .line { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .error { color: #b42318; font-weight: 700; margin-top: 12px; min-height: 24px; }
+    @media (max-width: 720px) { .product-layout { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="#product" data-route="product">Northstar Supply</a>
+    <nav aria-label="Store navigation">
+      <a href="#cart" data-route="cart">Cart (<span id="cart-count">0</span>)</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="product-view" class="view active product" aria-labelledby="product-heading">
+      <div class="product-layout">
+        <div class="photo" role="img" aria-label="Portable solar lantern product photo">Solar Lantern</div>
+        <div>
+          <h1 id="product-heading">Solari Field Lantern</h1>
+          <p class="muted">A compact rechargeable lantern for field teams and weekend campers.</p>
+          <p class="price">$49.00</p>
+          <button id="add-to-cart" type="button">Add to Cart</button>
+          <p id="product-status" class="muted" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="cart-view" class="view cart" aria-labelledby="cart-heading">
+      <h1 id="cart-heading">Cart</h1>
+      <div class="line"><span>Solari Field Lantern</span><strong>$49.00</strong></div>
+      <div class="line"><span>Shipping</span><strong>Free</strong></div>
+      <div class="line"><span>Total</span><strong>$49.00</strong></div>
+      <p id="cart-empty" class="muted">Your cart is empty.</p>
+      <button id="checkout" type="button">Checkout</button>
+    </section>
+
+    <section id="checkout-view" class="view checkout" aria-labelledby="checkout-heading">
+      <h1 id="checkout-heading">Checkout</h1>
+      <p class="muted">Enter delivery details to place your order.</p>
+      <form id="checkout-form">
+        <label for="name">Full name</label>
+        <input id="name" name="name" autocomplete="name" required />
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+        <label for="address">Address</label>
+        <input id="address" name="address" autocomplete="street-address" required />
+        <label for="city">City</label>
+        <input id="city" name="city" autocomplete="address-level2" required />
+        <label for="postcode">Postcode</label>
+        <input id="postcode" name="postcode" autocomplete="postal-code" required />
+        <p class="line"><span>Total due today</span><strong>$49.00</strong></p>
+        <button id="place-order" type="submit">Place Order</button>
+        <p id="checkout-error" class="error" aria-live="assertive"></p>
+      </form>
+    </section>
+
+    <section id="confirmation-view" class="view confirmation" aria-labelledby="confirmation-heading">
+      <h1 id="confirmation-heading">Order confirmed</h1>
+      <p>Thank you. Your order number is NS-1007.</p>
+    </section>
+  </main>
+
+  <script>
+    const state = { cartCount: Number(localStorage.getItem("cartCount") || "0") };
+    const views = {
+      product: document.getElementById("product-view"),
+      cart: document.getElementById("cart-view"),
+      checkout: document.getElementById("checkout-view"),
+      confirmation: document.getElementById("confirmation-view")
+    };
+
+    function render(route = "product") {
+      Object.entries(views).forEach(([name, element]) => element.classList.toggle("active", name === route));
+      document.getElementById("cart-count").textContent = String(state.cartCount);
+      document.getElementById("cart-empty").style.display = state.cartCount > 0 ? "none" : "block";
+      document.getElementById("checkout").disabled = state.cartCount === 0;
+      location.hash = route;
+    }
+
+    document.querySelectorAll("[data-route]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        render(link.getAttribute("data-route"));
+      });
+    });
+
+    document.getElementById("add-to-cart").addEventListener("click", () => {
+      state.cartCount = 1;
+      localStorage.setItem("cartCount", "1");
+      document.getElementById("product-status").textContent = "Added to cart.";
+      render("cart");
+    });
+
+    document.getElementById("checkout").addEventListener("click", () => render("checkout"));
+
+    document.getElementById("checkout-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!event.currentTarget.checkValidity()) {
+        document.getElementById("checkout-error").textContent = "Please complete all required fields.";
+        return;
+      }
+      // Intentional AgentQA seed bug: the submit handler never calls render("confirmation").
+      document.getElementById("checkout-error").textContent = "Order could not be submitted. Please try again.";
+    });
+
+    render((location.hash || "#product").slice(1));
+  </script>
+</body>
+</html>
