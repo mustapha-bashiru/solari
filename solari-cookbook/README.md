@@ -113,8 +113,8 @@ full run needs only one concurrent sandbox slot.
 Requires Node.js 20+, a Solari API key, and an OpenAI-compatible API key.
 
 ```bash
-git clone https://github.com/mustapha-bashiru/solari-cookbook.git
-cd solari-cookbook/showcases/agentqa-ts
+git clone https://github.com/mustapha-bashiru/solari.git
+cd solari/solari-cookbook/showcases/agentqa-ts
 
 npm install
 cp .env.example .env
@@ -193,22 +193,41 @@ Reports and screenshots are per-run artifacts and are gitignored.
 
 ## Demo
 
-<!-- Replace the placeholders below with real media, e.g. docs/media/*.png|gif -->
+**The report AgentQA generates**
 
-**Agent run (terminal)**
+Every run ends in a self-contained HTML file, and the verdict sits at the top:
+status, severity, confidence, and reproduction rate, followed by expected vs.
+actual behaviour and the target it ran against.
 
-![AgentQA run in the terminal](docs/media/agentqa-run.png)
-<!-- TODO: screenshot of `npm start` showing investigator turns and verification -->
+![AgentQA report header: confirmed, high severity, 93% confidence, 3/3 reproduction] (docs/media/solari-cookbook/docs/media/Screenshot 2026-09-04 155543.png)
 
-**Generated bug report**
+**Steps and evidence**
 
-![AgentQA HTML bug report](docs/media/agentqa-report.png)
-<!-- TODO: screenshot of agentqa-report.html — header, metrics, evidence cards -->
+Below the verdict is the path the agent actually took, then one evidence card per
+verification attempt — each with its own full-page screenshot and the exact
+post-submit text that was observed.
+
+![AgentQA report steps and three verification evidence cards](solari-cookbook/docs/media/Screenshot 2026-09-04 155806.png)
+
+**Investigator vs. verifier**
+
+The two halves of a run reached the same defect from different inputs: the agent
+picked its own test data, the verifier used its own fixed set. Same error either
+way — which is the point, since the failure is not tied to what was typed.
+
+| Investigator | Verifier |
+| --- | --- |
+| ![Investigator capture: checkout error after clicking Place Order](docs/media/agentqa-investigator-failure.png) | ![Verifier capture: the same checkout error on a fresh attempt](docs/media/agentqa-verification-failure.png) |
+
+All three verifier captures come out byte-for-byte identical, which is what a
+deterministic 3/3 reproduction actually looks like.
 
 **End-to-end walkthrough**
 
-![AgentQA end-to-end walkthrough](docs/media/agentqa-demo.gif)
-<!-- TODO: short GIF or a link to a hosted video walkthrough -->
+A recorded run — the investigator exploring checkout, the three-run
+verification, and the generated report — is up on LinkedIn:
+
+**▶ [Watch the AgentQA demo](https://www.linkedin.com/in/bashiru-mustapha-768415307)**
 
 ## Example report summary
 
