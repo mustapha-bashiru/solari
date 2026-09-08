@@ -1,6 +1,7 @@
+````markdown
 # AgentQA
 
-**Autonomous QA agent built with Solari.**
+**Autonomous QA agent for Web and Web3 applications, built with Solari.**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933)](https://nodejs.org/)
@@ -11,102 +12,211 @@
 
 ## Overview
 
-AgentQA is an autonomous QA agent that tests a web checkout flow the way a human
-tester would — then refuses to file a bug it cannot prove.
+AgentQA is an autonomous QA agent that investigates web applications and produces evidence-backed bug reports.
 
-A language model drives a recorded [Solari](https://getsolari.com) cloud browser
-through a bounded set of tools (navigate, inspect, click, fill, wait,
-screenshot). When it believes checkout is broken, it does not write the report.
-Instead, a deterministic verifier replays the whole purchase from clean state
-three times, an isolated Solari sandbox scores the collected evidence, and only
-then does AgentQA emit a self-contained HTML bug report with screenshots, a full
-action trace, and a downloadable rrweb session recording.
+A language model drives a recorded [Solari](https://getsolari.com) cloud browser through a bounded set of tools — navigate, inspect, click, fill, wait, and screenshot. The agent explores the target application rather than following a completely hard-coded path.
 
-The goal is a QA report a developer can act on without re-testing it by hand:
-every claim in the output is backed by observed page text, a screenshot, and a
-reproduction rate.
+When it suspects a failure, AgentQA does not immediately file a bug. A deterministic verifier independently reproduces the suspected failure from clean state, an isolated Solari sandbox analyzes the collected evidence, and only then does AgentQA produce a report.
+
+The current bundled demonstration uses a deterministic e-commerce checkout, but the architecture is intended to extend to **Web3 applications and dApps** including wallet connection, network switching, token approvals, contract transactions, NFT minting, staking, and DeFi workflows.
+
+The result is an evidence-backed QA report containing the finding, reproduction steps, screenshots, structured trace data, reproduction rate, confidence, and — when available — a Solari session replay.
+
+With the optional KeeperHub integration, the generated report can also be **cryptographically attested on-chain** by binding its SHA-256 digest to a Sepolia transaction.
+
+---
 
 ## Features
 
-- **Autonomous browser navigation** — the model explores the target site through
-  a small tool surface instead of a hard-coded script, so the path to checkout is
-  discovered rather than replayed.
-- **Checkout testing** — product → cart → checkout → form fill → submit, driven
-  end to end with plausible test data.
-- **Post-submit inspection** — after every submission the agent reads the actual
-  rendered page text and classifies the outcome as confirmed failure, successful
-  checkout, or inconclusive. No silent assumptions about what "worked" means.
-- **Bug detection** — a suspected defect must include severity, expected vs.
-  actual behaviour, reproduction steps, and a rationale before it is accepted for
-  verification.
-- **Screenshot evidence** — full-page captures at submission time and on every
-  verification attempt, embedded directly in the report.
-- **Three-run verification** — a suspected failure is re-tested three times from
-  freshly cleared `localStorage`/`sessionStorage`. Only a 3/3 reproduction is
-  reported as confirmed; anything less is labelled inconclusive.
-- **Isolated evidence analysis** — trace and verification data are scored by
-  Python inside a separate Solari sandbox, keeping the verdict out of the model's
-  hands.
-- **Session recording** — each run ships an rrweb DOM-level trace of the real
-  browser session, linked from the report.
+- **Autonomous browser navigation** — the model explores the target site through a small tool surface instead of following a fully hard-coded script.
+
+- **Web application testing** — currently demonstrated with product → cart → checkout → form fill → submit.
+
+- **Web3-ready testing** — designed to support wallet connections, network selection, contract calls, token approvals, NFT minting, staking, DeFi interactions, and other dApp workflows.
+
+- **Post-action inspection** — after important actions the agent inspects the actual rendered page state and classifies the outcome instead of relying on assumptions.
+
+- **Bug detection** — a suspected defect must include severity, expected vs. actual behaviour, reproduction steps, and a rationale before it is accepted for verification.
+
+- **Screenshot evidence** — captures are collected during investigation and verification and embedded into the generated report.
+
+- **Three-run verification** — suspected failures are re-tested from freshly cleared browser state. The current checkout verifier requires a 3/3 reproduction before marking the defect confirmed.
+
+- **Isolated evidence analysis** — trace and verification data are analyzed inside a separate Solari sandbox, keeping the final evidence assessment out of the investigator's control.
+
+- **Session recording** — browsers are launched with recording enabled. A replay link is included when the Solari recording service makes the replay available.
+
+- **Structured JSON output** — every run produces a machine-readable `agentqa-report.json` alongside the human-readable HTML report.
+
+- **On-chain report attestation** — optionally hashes the report and records the digest in KeeperHub-managed Sepolia transaction calldata.
+
+- **Independent on-chain verification** — the transaction is fetched back from the chain and its calldata is checked against the report digest rather than trusting KeeperHub's execution response alone.
+
+---
 
 ## Architecture
 
-AgentQA splits judgement from proof. The **investigator** is free-form and
-model-driven; the **verifier** is deterministic code that the model cannot
-influence.
+AgentQA separates **investigation** from **proof**.
 
+The investigator is model-driven and exploratory. The verifier is deterministic code that the model cannot influence.
+
+```text
+                         ┌──────────────────────────────┐
+                         │       Target Application     │
+                         │                              │
+                         │  Web app / Web3 dApp        │
+                         │  checkout / wallet / tx /    │
+                         │  contract / DeFi workflow    │
+                         └──────────────┬───────────────┘
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │       INVESTIGATOR            │
+                         │                              │
+                         │  LLM + recorded Solari       │
+                         │  browser                     │
+                         │                              │
+                         │  navigate · inspect · click  │
+                         │  fill · wait · screenshot    │
+                         └──────────────┬───────────────┘
+                                        │
+                              suspected finding
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │        VERIFIER               │
+                         │        (no model)             │
+                         │                              │
+                         │  Fresh state                 │
+                         │  Reproduction attempts       │
+                         │  Explicit outcome checks     │
+                         │  Screenshot evidence         │
+                         └──────────────┬───────────────┘
+                                        │
+                              trace + evidence
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │    SOLARI ANALYSIS SANDBOX    │
+                         │                              │
+                         │  Evidence scoring            │
+                         │  confidence                  │
+                         │  reproduction rate           │
+                         └──────────────┬───────────────┘
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │       QA REPORT              │
+                         │                              │
+                         │  agentqa-report.json         │
+                         │  agentqa-report.html         │
+                         │  screenshots / trace         │
+                         └──────────────┬───────────────┘
+                                        │
+                              SHA-256 digest
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │        KEEPERHUB              │
+                         │                              │
+                         │  workflow validation         │
+                         │  simulation                  │
+                         │  transaction execution       │
+                         └──────────────┬───────────────┘
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │       Ethereum Sepolia       │
+                         │                              │
+                         │  digest embedded in calldata │
+                         │  transaction receipt         │
+                         └──────────────┬───────────────┘
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │  Independent Verification    │
+                         │                              │
+                         │  eth_getTransactionByHash    │
+                         │  calldata → digest match     │
+                         └──────────────────────────────┘
+````
+
+### Investigator
+
+Runs the mission inside a Solari browser launched with recording enabled. Turn and action budgets prevent the model from wandering indefinitely.
+
+The investigator can only report a suspected defect through the structured `report_suspected_failure` path.
+
+### Verifier
+
+The verifier ignores the investigator's conclusion and independently tests the suspected failure.
+
+For the current checkout demonstration, it reloads the target, clears browser storage, performs the checkout sequence, and checks the resulting page state against explicit confirmation and error patterns.
+
+Each attempt produces an outcome, observation, and screenshot.
+
+### Evidence analysis
+
+The collected trace and verification results are analyzed inside a separate Solari sandbox.
+
+For the current deterministic checkout verifier:
+
+* `3/3` failures → confidence `0.93` → **confirmed**
+* partial reproduction → confidence `0.55`
+* no reproduction → confidence `0.20` → **inconclusive**
+
+---
+
+## Web3 application support
+
+The current demo is intentionally simple, but AgentQA is designed around **application workflows rather than e-commerce specifically**.
+
+Potential Web3 missions include:
+
+```text
+Connect wallet
+      │
+      ▼
+Check network
+      │
+      ▼
+Switch network
+      │
+      ▼
+Approve token
+      │
+      ▼
+Execute contract transaction
+      │
+      ▼
+Wait for confirmation
+      │
+      ▼
+Verify resulting application state
 ```
-                    ┌──────────────────────────────┐
-                    │  Solari sandbox (target)     │
-                    │  demo-store.html on :8000    │
-                    │  → public preview URL        │
-                    └──────────────┬───────────────┘
-                                   │
-                    ┌──────────────▼───────────────┐
-   LLM  ◄──tools──► │  INVESTIGATOR                │
-  (bounded          │  Recorded Solari browser     │
-   turns +          │  navigate · inspect · click  │
-   actions)         │  fill · wait · screenshot    │
-                    │  → report_suspected_failure  │
-                    └──────────────┬───────────────┘
-                                   │ suspected finding
-                    ┌──────────────▼───────────────┐
-                    │  VERIFIER (no model)         │
-                    │  3 × checkout from clean     │
-                    │  state · post-submit text    │
-                    │  → confirmed / succeeded /   │
-                    │    inconclusive + screenshot │
-                    └──────────────┬───────────────┘
-                                   │ trace + attempts
-                    ┌──────────────▼───────────────┐
-                    │  Solari sandbox (analysis)   │
-                    │  Python scores evidence      │
-                    │  → confidence, reproduction  │
-                    └──────────────┬───────────────┘
-                                   │
-                    ┌──────────────▼───────────────┐
-                    │  agentqa-report.html         │
-                    │  + screenshots + rrweb trace │
-                    └──────────────────────────────┘
-```
 
-**Investigator.** Runs the mission inside a Solari browser launched with
-`recording: true`. Every tool call is traced with URL, title, visible text, and
-an optional screenshot. Turn and action budgets are enforced, so a confused model
-fails fast instead of wandering. The only way out is
-`report_suspected_failure` — a structured, validated finding.
+This allows AgentQA to investigate failures such as:
 
-**Verifier.** Takes the finding and ignores the model entirely. It reloads the
-target, clears storage, and performs the checkout sequence three times, matching
-post-submit page text against explicit confirmation and error patterns. Each
-attempt yields an outcome, an observation, and a screenshot.
+* Wallet connection failures
+* Wrong-network handling
+* Wallet/provider detection problems
+* Transaction rejection handling
+* Contract transaction reverts
+* Gas estimation failures
+* Transactions stuck in pending state
+* Token approval failures
+* NFT mint failures
+* Staking failures
+* DeFi interaction failures
+* Incorrect post-transaction UI state
+* Missing transaction confirmation
+* Application state disagreeing with on-chain state
 
-Confidence follows the reproduction rate: `3/3` failures score `0.93` and mark
-the report **confirmed**; a partial reproduction scores `0.55`; no reproduction
-scores `0.20` and the report is marked **inconclusive**. The two sandboxes run
-sequentially — the target is released before the analysis sandbox starts — so a
-full run needs only one concurrent sandbox slot.
+The key principle is the same as the checkout demonstration:
+
+> **The agent observes a failure, then independently reproduces it before declaring it a defect.**
+
+---
 
 ## Installation
 
@@ -115,47 +225,67 @@ Requires Node.js 20+, a Solari API key, and an OpenAI-compatible API key.
 ```bash
 git clone https://github.com/mustapha-bashiru/solari.git
 cd solari/solari-cookbook/showcases/agentqa-ts
-
 npm install
 cp .env.example .env
 ```
 
-Then add your keys to `.env`:
+Then configure:
 
 ```bash
-SOLARI_API_KEY=slr_live_...   # console.getsolari.com
+SOLARI_API_KEY=slr_live_...
 OPENAI_API_KEY=sk-...
 ```
 
+---
+
 ## Usage
+
+Run the complete AgentQA workflow:
 
 ```bash
 npm start
 ```
 
-That's it — AgentQA provisions its own target, so there is nothing to serve
-locally. A run prints its progress and finishes with:
+AgentQA provisions its own target sandbox, launches the recorded browser, investigates the application, verifies the suspected failure, analyzes the evidence, and writes the report.
+
+A typical run ends with:
 
 ```text
 report: .../agentqa-report.html
 status: confirmed
-rrweb trace: https://...
+rrweb trace: ...
 ```
 
-Open `agentqa-report.html` in a browser to read the finding.
+If the recording service has not made a replay available, the run can still complete and produce the report without a replay URL.
 
-### Configuration
+Open:
 
-| Variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `SOLARI_API_KEY` | yes | — | Solari browsers and sandboxes |
-| `OPENAI_API_KEY` | yes | — | Investigator model |
-| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` | Any OpenAI-compatible gateway (e.g. OpenRouter) |
-| `OPENAI_MODEL` | no | `gpt-4.1-mini` | Investigator model name |
-| `TARGET_URL` | no | bundled demo store | Point AgentQA at another site |
-| `AGENTQA_MISSION` | no | `Test checkout as a first-time customer.` | The QA brief |
-| `AGENTQA_MAX_TURNS` | no | `12` | Model turn budget |
-| `AGENTQA_MAX_ACTIONS` | no | `24` | Browser action budget |
+```text
+agentqa-report.html
+```
+
+to inspect the finding.
+
+The machine-readable report is:
+
+```text
+agentqa-report.json
+```
+
+---
+
+## Configuration
+
+| Variable              | Required | Default                                   | Purpose                       |
+| --------------------- | -------- | ----------------------------------------- | ----------------------------- |
+| `SOLARI_API_KEY`      | yes      | —                                         | Solari browsers and sandboxes |
+| `OPENAI_API_KEY`      | yes      | —                                         | Investigator model            |
+| `OPENAI_BASE_URL`     | no       | `https://api.openai.com/v1`               | OpenAI-compatible gateway     |
+| `OPENAI_MODEL`        | no       | `gpt-4.1-mini`                            | Investigator model            |
+| `TARGET_URL`          | no       | bundled demo store                        | Point AgentQA at another site |
+| `AGENTQA_MISSION`     | no       | `Test checkout as a first-time customer.` | QA mission                    |
+| `AGENTQA_MAX_TURNS`   | no       | `12`                                      | Model turn budget             |
+| `AGENTQA_MAX_ACTIONS` | no       | `24`                                      | Browser action budget         |
 
 Type-check without spending API credits:
 
@@ -163,19 +293,219 @@ Type-check without spending API credits:
 npm run build
 ```
 
+---
+
+# KeeperHub On-Chain Attestation
+
+AgentQA proves the **bug**.
+
+KeeperHub optionally proves the **report**.
+
+The attestation layer takes the generated report, computes its SHA-256 digest, and records that digest in transaction calldata on Ethereum Sepolia.
+
+This creates a tamper-evident relationship between the generated report and an on-chain transaction.
+
+```text
+AgentQA report
+      │
+      ▼
+ SHA-256
+      │
+      ▼
+32-byte digest
+      │
+      ▼
+KeeperHub workflow
+      │
+      ├── validate
+      │
+      ├── simulate
+      │
+      └── execute
+             │
+             ▼
+      Sepolia transaction
+             │
+             ▼
+      digest in calldata
+```
+
+A plain ETH transfer would not be sufficient because the transaction would have no cryptographic relationship with the report.
+
+The digest in calldata is the important part.
+
+---
+
+## Attestation modes
+
+There are two supported paths.
+
+### Integrated `npm start`
+
+The main AgentQA run writes the report JSON first, then attests those exact bytes, and finally renders the HTML report containing the resulting proof.
+
+```ts
+const reportJson = `${JSON.stringify(report, null, 2)}\n`
+
+await writeFile(REPORT_JSON, reportJson, "utf8")
+
+const attestation = await attestReport(reportJson)
+
+await writeHtmlReport(report, attestation)
+```
+
+The digest therefore covers:
+
+```text
+agentqa-report.json
+```
+
+and **not the HTML file**.
+
+This is intentional because the HTML contains the attestation information itself. Hashing the HTML after inserting its own digest would create a circular dependency.
+
+### Standalone `npm run attest`
+
+For an already-generated report:
+
+```bash
+npm run attest -- --dry-run
+```
+
+performs the attestation flow without broadcasting.
+
+Then:
+
+```bash
+npm run attest
+```
+
+simulates, broadcasts, waits for confirmation, and verifies the transaction.
+
+In this mode the existing:
+
+```text
+agentqa-report.html
+```
+
+is hashed and the proof is written beside it as an attestation sidecar.
+
+---
+
+## KeeperHub configuration
+
+Set these variables in `.env`:
+
+| Variable                      | Required     | Default       | Purpose                            |
+| ----------------------------- | ------------ | ------------- | ---------------------------------- |
+| `KEEPERHUB_API_KEY`           | no           | —             | Enables KeeperHub attestation      |
+| `KEEPERHUB_WALLET_ADDRESS`    | when key set | —             | KeeperHub wallet address           |
+| `KEEPERHUB_ATTEST_RECIPIENT`  | no           | wallet itself | Attestation recipient              |
+| `KEEPERHUB_CHAIN_ID`          | no           | `11155111`    | Ethereum Sepolia                   |
+| `KEEPERHUB_ATTEST_AMOUNT_ETH` | no           | `0.001`       | Testnet ETH amount                 |
+| `KEEPERHUB_RPC_URL`           | no           | public RPC    | Read-only transaction verification |
+| `KEEPERHUB_TIMEOUT_MS`        | no           | `180000`      | Receipt polling timeout            |
+
+The KeeperHub API key is an organization API key and should remain local in `.env`. **Do not commit it or place it in source control.**
+
+If `KEEPERHUB_API_KEY` is not configured, AgentQA behaves as before and simply skips the attestation layer.
+
+---
+
+## Attestation safety gates
+
+The attestation flow does not immediately broadcast.
+
+The intended sequence is:
+
+```text
+1. Locate/create workflow
+        ↓
+2. Validate workflow
+        ↓
+3. Simulate transaction
+        ↓
+4. Execute workflow
+        ↓
+5. Poll execution
+        ↓
+6. Fetch transaction independently
+        ↓
+7. Verify digest in calldata
+```
+
+Workflow validation and simulation happen before the transaction is signed.
+
+An execution that remains `unconfirmed` is polled rather than blindly submitted again.
+
+Idempotency is keyed from the report digest so identical reports should not unnecessarily pay twice.
+
+After confirmation, AgentQA independently retrieves the transaction using `eth_getTransactionByHash` and checks that the calldata ends with the expected SHA-256 digest.
+
+A digest mismatch is treated as a fatal verification failure.
+
+---
+
+## Verified KeeperHub run
+
+The following end-to-end run was successfully executed on Ethereum Sepolia.
+
+|                           |                                                                      |
+| ------------------------- | -------------------------------------------------------------------- |
+| **Report digest**         | `bf36a837ef308fc06d929f376e6fbfb696d69f8c4cb88e021f9e9c81a112bcd7`   |
+| **Attested bytes**        | `18343`                                                              |
+| **Transaction**           | `0x1d7f5c84e5590db30c8e874ccc51b81f87f728c88d7fa15f4e0508a1eb38fbdc` |
+| **Chain**                 | `11155111` — Ethereum Sepolia                                        |
+| **From**                  | `0x39B327D0950Ff2d9C23520D57e55890E3bE932c6`                         |
+| **To**                    | `0x39B327D0950Ff2d9C23520D57e55890E3bE932c6`                         |
+| **Amount**                | `0.001 ETH` testnet                                                  |
+| **Execution ID**          | `ntr9pb5u4xo1t1wg4yk1a`                                              |
+| **Workflow ID**           | `z8plgp2yjbvm4a39o2k3o`                                              |
+| **Workflow validation**   | passed                                                               |
+| **Simulation**            | passed, no revert                                                    |
+| **Execution**             | success                                                              |
+| **On-chain digest check** | confirmed                                                            |
+
+Transaction:
+
+[https://sepolia.etherscan.io/tx/0x1d7f5c84e5590db30c8e874ccc51b81f87f728c88d7fa15f4e0508a1eb38fbdc](https://sepolia.etherscan.io/tx/0x1d7f5c84e5590db30c8e874ccc51b81f87f728c88d7fa15f4e0508a1eb38fbdc)
+
+To independently verify the report:
+
+```bash
+sha256sum agentqa-report.html
+```
+
+for a standalone HTML attestation, or:
+
+```bash
+sha256sum agentqa-report.json
+```
+
+when using the integrated `npm start` attestation path.
+
+The resulting digest must match the digest recorded in the corresponding attestation.
+
+---
+
 ## Project structure
 
-```
+```text
 solari-cookbook/
 ├── showcases/
-│   └── agentqa-ts/                 ← AgentQA
+│   └── agentqa-ts/
 │       ├── index.ts                 Agent, verifier, analysis, report writer
-│       ├── demo-store.html          Target store with one seeded checkout defect
+│       ├── keeperhub.ts             Optional on-chain report attestation
+│       ├── attest.ts                npm run attest CLI
+│       ├── demo-store.html          Deterministic checkout test target
 │       ├── .env.example             Configuration template
-│       ├── package.json             npm install · npm start · npm run build
+│       ├── package.json
 │       ├── tsconfig.json
-│       ├── agentqa-report.html      Generated report (untracked)
-│       └── agentqa-artifacts/       Generated screenshots (untracked)
+│       ├── agentqa-report.html      Generated report
+│       ├── agentqa-report.json      Generated structured report
+│       ├── agentqa-attestation.*    Generated attestation proof
+│       └── agentqa-artifacts/       Generated screenshots
+│
 ├── examples/                        Upstream Solari Cookbook examples
 │   ├── browser-quickstart-ts/
 │   ├── browser-profiles-ts/
@@ -185,109 +515,166 @@ solari-cookbook/
 │   ├── sandbox-code-interpreter-py/
 │   ├── sandbox-port-preview-ts/
 │   └── desktop-computer-use-py/
+│
 ├── LICENSE
 └── README.md
 ```
 
-Reports and screenshots are per-run artifacts and are gitignored.
+Generated reports, screenshots, and attestation artifacts are gitignored.
+
+---
 
 ## Demo
 
-**The report AgentQA generates**
+### The report AgentQA generates
 
-Every run ends in a self-contained HTML file, and the verdict sits at the top:
-status, severity, confidence, and reproduction rate, followed by expected vs.
-actual behaviour and the target it ran against.
+Every run produces a self-contained HTML report containing:
 
-![AgentQA report header: confirmed, high severity, 93% confidence, 3/3 reproduction] (docs/media/solari-cookbook/docs/media/Screenshot 2026-09-04 155543.png)
+* status
+* severity
+* confidence
+* reproduction rate
+* expected behaviour
+* actual behaviour
+* reproduction steps
+* screenshots
+* investigator evidence
+* verifier evidence
+* structured trace
+* KeeperHub attestation when enabled
 
-**Steps and evidence**
+![AgentQA report header: confirmed, high severity, 93% confidence, 3/3 reproduction](docs/media/solari-cookbook/docs/media/Screenshot%202026-09-04%20155543.png)
 
-Below the verdict is the path the agent actually took, then one evidence card per
-verification attempt — each with its own full-page screenshot and the exact
-post-submit text that was observed.
+### Steps and evidence
 
-![AgentQA report steps and three verification evidence cards](solari-cookbook/docs/media/Screenshot 2026-09-04 155806.png)
+The report shows the path the investigator actually took, followed by evidence from each independent verification attempt.
 
-**Investigator vs. verifier**
+![AgentQA report steps and verification evidence](solari-cookbook/docs/media/Screenshot%202026-09-04%20155806.png)
 
-The two halves of a run reached the same defect from different inputs: the agent
-picked its own test data, the verifier used its own fixed set. Same error either
-way — which is the point, since the failure is not tied to what was typed.
+### Investigator vs. verifier
 
-| Investigator | Verifier |
-| --- | --- |
-| ![Investigator capture: checkout error after clicking Place Order](docs/media/agentqa-investigator-failure.png) | ![Verifier capture: the same checkout error on a fresh attempt](docs/media/agentqa-verification-failure.png) |
+The investigator and verifier approach the defect independently.
 
-All three verifier captures come out byte-for-byte identical, which is what a
-deterministic 3/3 reproduction actually looks like.
+| Investigator                       | Verifier                                       |
+| ---------------------------------- | ---------------------------------------------- |
+| Model-driven exploration           | Deterministic reproduction                     |
+| Chooses its own path and test data | Uses controlled verification inputs            |
+| Produces a suspected finding       | Determines whether the failure is reproducible |
 
-**End-to-end walkthrough**
+The separation is important: the model cannot simply declare its own suspicion to be true.
 
-A recorded run — the investigator exploring checkout, the three-run
-verification, and the generated report — is up on LinkedIn:
+---
 
-**▶ [Watch the AgentQA demo](https://www.linkedin.com/in/bashiru-mustapha-768415307)**
+## End-to-end workflow
+
+A typical AgentQA + KeeperHub run looks like this:
+
+```text
+1. Provision isolated target
+        ↓
+2. Launch recorded Solari browser
+        ↓
+3. Autonomous investigation
+        ↓
+4. Suspected failure
+        ↓
+5. Three independent verification attempts
+        ↓
+6. Evidence analysis
+        ↓
+7. Generate JSON report
+        ↓
+8. SHA-256 report
+        ↓
+9. KeeperHub workflow validation
+        ↓
+10. KeeperHub simulation
+        ↓
+11. KeeperHub execution
+        ↓
+12. Sepolia confirmation
+        ↓
+13. Re-read transaction from chain
+        ↓
+14. Verify digest
+        ↓
+15. Render final HTML report
+```
+
+This gives the project two separate proofs:
+
+**QA proof**
+
+> The application defect was observed and independently reproduced.
+
+**Integrity proof**
+
+> The generated report corresponds to the bytes whose digest was recorded on-chain.
+
+---
 
 ## Example report summary
 
-From a run against the bundled demo store, whose checkout handler intentionally
-never reaches the confirmation view:
+The bundled demonstration intentionally contains a checkout failure.
 
-| | |
-| --- | --- |
-| **Finding** | Checkout order submission failed |
-| **Status** | Confirmed |
-| **Severity** | High |
-| **Confidence** | 93% |
-| **Reproduction** | 3/3 |
+|                  |                                  |
+| ---------------- | -------------------------------- |
+| **Finding**      | Checkout order submission failed |
+| **Status**       | Confirmed                        |
+| **Severity**     | High                             |
+| **Confidence**   | 93%                              |
+| **Reproduction** | 3/3                              |
 
-**Expected** — successful order placement with an order confirmation
-screen/message.
+**Expected** — successful order placement followed by an order confirmation.
 
-**Actual** — a visible error on submitting the checkout form: *"Order could not
-be submitted. Please try again."*
+**Actual** — after clicking **Place Order**, the checkout displayed:
 
-**Investigator** — after completing all required fields (`#name`, `#email`,
-`#address`, `#city`, `#postcode`) with plausible test data and clicking **Place
-Order**, the order did not complete and the page displayed the submission error.
+> "Order could not be submitted. Please try again."
 
-**Verifier** — 3 explicit failures, 0 successful checkouts, and 0 inconclusive
-attempts across 3 fresh attempts, each with its own full-page screenshot.
+The verifier reproduced the same explicit failure three times from fresh state.
 
-The checkout error was detected once by the agent and then confirmed in three
-independent attempts, which is what promotes it from a suspicion to a reportable
-defect.
+---
 
 ## Future improvements
 
-- **Multi-flow coverage** — signup, login, search, and returns alongside
-  checkout, driven by a mission list rather than a single brief.
-- **Regression baselines** — persist reports per commit so AgentQA can report new
-  versus known defects instead of re-reporting the same one.
-- **CI integration** — a GitHub Action that runs AgentQA on pull requests and
-  fails the build on a confirmed critical or high finding.
-- **Richer verification** — network and console capture, and accessibility
-  assertions alongside the visible-text signal.
-- **Parallel verification** — run the three attempts concurrently across browser
-  sessions to cut wall-clock time.
-- **Adaptive attempts** — escalate to more attempts when the first three are
-  inconclusive rather than settling for a low-confidence verdict.
-- **Issue filing** — open a GitHub issue directly from a confirmed report, with
-  screenshots and the rrweb trace attached.
-- **Structured output** — a JSON report alongside the HTML for downstream tools.
+* **Multi-flow coverage** — signup, login, search, returns, wallet connection, token approvals, and other workflows driven by mission lists.
+
+* **Dedicated Web3 verification** — wallet-aware verification and explicit on-chain state assertions for dApps.
+
+* **Regression baselines** — persist reports per commit so AgentQA can distinguish new defects from known defects.
+
+* **CI integration** — a GitHub Action that runs AgentQA on pull requests and fails the build on confirmed critical or high findings.
+
+* **Richer verification** — network, console, accessibility, and transaction-level assertions alongside visible UI evidence.
+
+* **Parallel verification** — run independent verification attempts concurrently across browser sessions.
+
+* **Adaptive attempts** — escalate verification when initial attempts are inconclusive.
+
+* **Issue filing** — open a GitHub issue directly from a confirmed report with evidence attached.
+
+* **Persistent attestation history** — maintain a verifiable history of QA reports across application versions and deployments.
+
+* **Developer dashboard** — visualize findings, verification history, transaction attestations, and regression trends.
+
+---
 
 ## Credits
 
-This project is built on top of the [Solari
-Cookbook](https://github.com/solari-sdk/solari-cookbook). AgentQA is my extension
-of the original showcase.
+This project is built on top of the [Solari Cookbook](https://github.com/solari-sdk/solari-cookbook).
+
+AgentQA is an extension of the original Solari showcase.
 
 Solari resources:
 
-- Docs — [docs.getsolari.com](https://docs.getsolari.com)
-- Console — [console.getsolari.com](https://console.getsolari.com)
+* Docs — [https://docs.getsolari.com](https://docs.getsolari.com)
+* Console — [https://console.getsolari.com](https://console.getsolari.com)
+
+---
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+```
+```

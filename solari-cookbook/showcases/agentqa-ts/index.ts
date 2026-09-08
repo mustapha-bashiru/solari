@@ -9,10 +9,15 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { BrowserSession, Solari } from "@solarisdk/browser"
 import { SolariClient } from "@solarisdk/sdk"
+import { type Attestation, attest, renderAttestationSection } from "./keeperhub.ts"
 
 const EXAMPLE_DIR = dirname(fileURLToPath(import.meta.url))
 const DEMO_STORE_FILE = join(EXAMPLE_DIR, "demo-store.html")
 const REPORT_FILE = join(EXAMPLE_DIR, "agentqa-report.html")
+// The attested bytes. The digest cannot cover the HTML, because the HTML
+// embeds the digest - hashing a file and then writing the hash into that same
+// file never verifies. This JSON is what a reader hashes instead.
+const REPORT_JSON = join(EXAMPLE_DIR, "agentqa-report.json")
 const ARTIFACT_DIR = join(EXAMPLE_DIR, "agentqa-artifacts")
 const TARGET_PORT = 8000
 const DEFAULT_MODEL = "gpt-4.1-mini"
@@ -981,7 +986,7 @@ function buildReport(
   }
 }
 
-async function writeHtmlReport(report: Report): Promise<void> {
+async function writeHtmlReport(report: Report, attestation: Attestation | null = null): Promise<void> {
   const traceRows = report.trace
     .map(
       (entry) => `<tr>
@@ -1091,10 +1096,31 @@ async function writeHtmlReport(report: Report): Promise<void> {
         <tbody>${traceRows}</tbody>
       </table>
     </section>
+${renderAttestationSection(attestation)}
   </main>
 </body>
 </html>`
   await writeFile(REPORT_FILE, html, "utf8")
+}
+
+/**
+ * Attest the report bytes, or return null if that is not possible.
+ *
+ * Unconfigured KeeperHub is silent - that is the point of the feature being
+ * optional. A configured-but-failing KeeperHub warns and continues: by this
+ * point the run is finished and the report is the deliverable, so a testnet
+ * outage should cost the attestation panel, not the whole run. The warning is
+ * on stderr because a missing proof is not something to discover by noticing an
+ * absent table.
+ */
+async function attestReport(bytes: string): Promise<Attestation | null> {
+  try {
+    return await attest(bytes, undefined, { verifyCommand: "sha256sum agentqa-report.json" })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`attestation skipped: ${clip(message, 300)}`)
+    return null
+  }
 }
 
 async function main(): Promise<void> {
@@ -1127,11 +1153,20 @@ async function main(): Promise<void> {
       const replay = await pollReplayUrl(solari, sessionId)
       if (releaseNote) replay.replayStatus += `; browser release failed: ${clip(releaseNote, 200)}`
       const report = buildReport(finding, analysis, attempts, trace, target.targetUrl, sessionId, replay)
-      await writeHtmlReport(report)
+
+      // Write the attested bytes first, then attest exactly those bytes. The
+      // HTML is rendered afterwards so it can carry the resulting proof.
+      const reportJson = `${JSON.stringify(report, null, 2)}\n`
+      await writeFile(REPORT_JSON, reportJson, "utf8")
+      const attestation = await attestReport(reportJson)
+      await writeHtmlReport(report, attestation)
 
       console.log("report:", REPORT_FILE)
       console.log("status:", analysis.reproducible ? "confirmed" : "inconclusive")
       console.log("rrweb trace:", replay.replayUrl ?? replay.replayStatus)
+      if (attestation) {
+        console.log("attested:", attestation.explorerUrl)
+      }
     } finally {
       if (browser.isConnected()) {
         await sleep(RECORDING_FLUSH_MS)

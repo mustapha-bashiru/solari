@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts",
+    "attest": "tsx attest.ts",
     "build": "tsc --noEmit"
   },
   "dependencies": {
