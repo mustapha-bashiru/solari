@@ -3,10 +3,10 @@
 
 **Autonomous QA agent for Web and Web3 applications, built with Solari.**
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933)](https://nodejs.org/)
-[![Solari](https://img.shields.io/badge/Built%20with-Solari-0f766e)](https://getsolari.com)
-[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+![![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6)](https://www.typescriptlang.org/)
+![![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933)](https://nodejs.org/)
+![![Solari](https://img.shields.io/badge/Built%20with-Solari-0f766e)](https://getsolari.com)
+![![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 ---
 
